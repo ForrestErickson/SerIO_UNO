@@ -8,6 +8,7 @@
 // so make sure to select this in the Tools->Board menu when programming
 //Run on UNO by Forrest Erickson. Set baud to 115200.
 //Implement "T,n" command to call "test_sequence()" because could not get <Ctrl>t to work with built in serial window.
+//Implement " " as delimiter.  Delimiter is ',' or ' '.  
 
 //Load the libraries for the program
 #include <EEPROM.h>
@@ -124,7 +125,8 @@ void setup()
     //Retrieve the Echo setting
     echo_command = EEPROM.read(1);
   }
-  Serial.println("Ready for Commands:");
+//  Serial.println("\fReady for Commands:");  // Form feed, \f did not clear the Sketch terminal.
+  Serial.println("\nReady for Commands:");  // 
 }
 
 void loop()
@@ -147,6 +149,7 @@ void loop()
   }
   else if(!process_command(command_buffer)) Serial.println("Invalid Command"); //Check the command for validity and execute the command in the command_buffer string
 }
+
 //Function Definitions
 //Function: get_command(char *)
 //Inputs: char * command - the string to store an entered command
@@ -161,11 +164,8 @@ char get_command(char * command)
   while(Serial.available() <= 0);  //Wait for a character to come into the UART
   receive_char = Serial.read();  //Get the character from the UART and put it into the receive_char variable
   //Keep adding characters to the command string until the carriage return character is received
+  //Commands terminated with CR only.  Set terminal program accordintly.
 
- //   while(receive_char != '\r'){
-//  while(receive_char != '\n'){
-//FLE Set for a period to terminate command line as neither "\r" or "\n" seamed to work with the Arduino terminal window.
-//    while(receive_char != '.'){
   while(receive_char != '\r'){
     *command=receive_char;      //Add the current character to the command string
     if(echo_command==1)Serial.print(*command++);  //Print the current character, then move the end of the command sting.
@@ -183,7 +183,7 @@ char get_command(char * command)
 }
 
 //Function: process_command(char *)
-//Inputs: char * command - the string which contains the commandto be checked for validity and executed
+//Inputs: char * command - the string which contains the command to be checked for validity and executed
 //Outputs: 0 - Invalid command was sent to function
 //         1 - Command executed
 //usage: process_command(string_name);
@@ -373,6 +373,7 @@ char process_command(char * command)
     case 'T':
       Serial.print("Test Sequence Return = ");
       Serial.println (test_sequence());
+      command_buffer[0] = 20;
       break;
     default:
       //An invalid command was entered
@@ -463,7 +464,7 @@ char verifyCommandFields(char * command, char type, char * comma_index)
    //Count the commas and record their indices to find out how many fields are in the command
   for(int index=0; index < command_length; index++)
   {
-    if(command[index]==',')
+    if(command[index]==',' || command[index]==' ')  //FLE let's use space as delimiter too.
     {
       field_count+=1;
       comma_index[recording_index++]=index;
@@ -515,7 +516,7 @@ char verifyCommandFields(char * command, char type, char * comma_index)
       //We have two fields, but the second comma isn't in the right place
       return 0;
     }
-    if(command[command_length-1]==',') //If there is a comma at the end of the command, the last field wasn't given a value.
+    if(command[command_length-1]==',' || command[command_length-1]==' ') //If there is a delimiter at the end of the command, the last field wasn't given a value.
     {
       return 0;
     }
@@ -539,8 +540,10 @@ char verifyCommandFields(char * command, char type, char * comma_index)
   //Now we know the command is in the correct format, we need to make sure the characters are acceptable
   for(int index=1; index < command_length; index++)
   {
-    //Make sure all characters are numbers, commas, or acceptable command parameters (A,D and P)
-    if(!isdigit(command[index]) && command[index]!=',' && (toupper(command[index]))!='A' && (toupper(command[index]))!='D' && (toupper(command[index]))!='P' && toupper(command[index])!='E')
+
+    //Make sure all characters are numbers, commas (or spaces), or acceptable command parameters (A,D and P)
+    //For testing against invalid delimiter characters remember DeMorgan, if not (a or b), = not a and not b.
+if(!isdigit(command[index]) && ((command[index]!=',') && (command[index]!=' ')) && (toupper(command[index]))!='A' && (toupper(command[index]))!='D' && (toupper(command[index]))!='P' && toupper(command[index])!='E')
     {
       //There is a character in the command that is not a comma or a number (other than the command parameter). This is bad!
       return 0;
